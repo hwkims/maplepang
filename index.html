@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>애니팡 스타일 퍼즐 게임</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f0f0f0;
+            overflow: hidden;
+        }
+        #game-container {
+            position: relative;
+            width: 640px;
+            height: 640px;
+            display: grid;
+            grid-template-columns: repeat(8, 80px);
+            grid-template-rows: repeat(8, 80px);
+            gap: 5px;
+            border: 2px solid #000;
+            margin: 20px;
+        }
+        .tile {
+            width: 80px;
+            height: 80px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-radius: 8px;
+            cursor: pointer;
+            background-color: #ddd;
+            position: relative;
+        }
+        .tile img {
+            width: 100%;
+            height: 100%;
+        }
+        #score {
+            font-size: 24px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        #message {
+            font-size: 20px;
+            color: green;
+            text-align: center;
+        }
+        #restart {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 18px;
+        }
+        #restart:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div>
+        <div id="score">점수: 0</div>
+        <div id="game-container"></div>
+        <div id="message"></div>
+        <button id="restart" style="display: none;">다시 시작</button>
+    </div>
+
+    <audio id="audio1" src="1 (1).mp3" preload="auto"></audio>
+    <audio id="audio2" src="1 (2).mp3" preload="auto"></audio>
+
+    <script>
+        const tileImages = [
+            '1 (1).png', '1 (2).png', '1 (3).png', '1 (4).png', 
+            '1 (5).png', '1 (6).png', '1 (7).png', '1 (8).png'
+        ];
+
+        let grid = [];
+        let score = 0;
+        let gameStarted = false;
+
+        // 게임 셋업 함수
+        function setupGame() {
+            grid = [];
+            score = 0;
+            document.getElementById('score').textContent = `점수: ${score}`;
+            document.getElementById('message').textContent = '';
+            const gameContainer = document.getElementById('game-container');
+            gameContainer.innerHTML = '';
+
+            // 8x8 그리드 생성
+            for (let row = 0; row < 8; row++) {
+                grid[row] = [];
+                for (let col = 0; col < 8; col++) {
+                    const randomImage = tileImages[Math.floor(Math.random() * tileImages.length)];
+                    const tile = document.createElement('div');
+                    tile.classList.add('tile');
+                    tile.setAttribute('data-row', row);
+                    tile.setAttribute('data-col', col);
+                    const img = document.createElement('img');
+                    img.src = randomImage;
+                    tile.appendChild(img);
+                    tile.addEventListener('click', () => handleTileClick(row, col));
+                    tile.addEventListener('touchstart', () => handleTileClick(row, col)); // 터치 이벤트 추가
+                    gameContainer.appendChild(tile);
+                    grid[row][col] = randomImage;
+                }
+            }
+
+            gameStarted = true;
+        }
+
+        // 타일 클릭 시 처리
+        function handleTileClick(row, col) {
+            const clickedImage = grid[row][col];
+
+            // 클릭한 타일을 기준으로 주변의 같은 이미지를 찾아 터뜨리기
+            const toExplode = [];
+            findMatches(row, col, clickedImage, toExplode);
+
+            if (toExplode.length >= 3) {
+                explodeTiles(toExplode);
+                score += toExplode.length * 10;
+                document.getElementById('score').textContent = `점수: ${score}`;
+                playAudio('audio1');
+                fillEmptySpaces();
+            } else {
+                playAudio('audio2');
+            }
+
+            if (grid.flat().every(cell => cell === '')) {
+                endGame();
+            }
+        }
+
+        // 동일한 이미지 3개 이상 찾기
+        function findMatches(row, col, image, toExplode) {
+            if (row < 0 || row >= 8 || col < 0 || col >= 8) return;
+            if (grid[row][col] !== image) return;
+
+            const index = toExplode.findIndex(t => t.row === row && t.col === col);
+            if (index !== -1) return;
+
+            toExplode.push({ row, col });
+
+            // 상하좌우 4방향으로 재귀적으로 탐색
+            findMatches(row - 1, col, image, toExplode); // 위
+            findMatches(row + 1, col, image, toExplode); // 아래
+            findMatches(row, col - 1, image, toExplode); // 왼쪽
+            findMatches(row, col + 1, image, toExplode); // 오른쪽
+        }
+
+        // 타일 폭발 처리
+        function explodeTiles(toExplode) {
+            toExplode.forEach(({ row, col }) => {
+                grid[row][col] = '';
+                const tile = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                tile.innerHTML = '';
+            });
+        }
+
+        // 빈 공간 채우기
+        function fillEmptySpaces() {
+            for (let col = 0; col < 8; col++) {
+                for (let row = 7; row >= 0; row--) {
+                    if (grid[row][col] === '') {
+                        for (let r = row - 1; r >= 0; r--) {
+                            if (grid[r][col] !== '') {
+                                grid[row][col] = grid[r][col];
+                                grid[r][col] = '';
+                                const tile = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                                const img = document.createElement('img');
+                                img.src = grid[row][col];
+                                tile.appendChild(img);
+                                const fallingTile = document.querySelector(`[data-row="${r}"][data-col="${col}"]`);
+                                fallingTile.innerHTML = '';
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 새로운 타일 생성
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    if (grid[row][col] === '') {
+                        const randomImage = tileImages[Math.floor(Math.random() * tileImages.length)];
+                        grid[row][col] = randomImage;
+                        const tile = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                        const img = document.createElement('img');
+                        img.src = randomImage;
+                        tile.appendChild(img);
+                    }
+                }
+            }
+        }
+
+        // 게임 종료 처리
+        function endGame() {
+            document.getElementById('message').textContent = '게임 종료! 당신의 점수는 ' + score + '점입니다!';
+            document.getElementById('restart').style.display = 'block';
+        }
+
+        // 오디오 재생
+        function playAudio(audioId) {
+            const audio = document.getElementById(audioId);
+            audio.play();
+        }
+
+        // 리스타트 버튼 클릭 시 게임 다시 시작
+        document.getElementById('restart').addEventListener('click', () => {
+            document.getElementById('restart').style.display = 'none';
+            setupGame();
+        });
+
+        // 페이지 로드 시 게임 시작
+        window.onload = () => {
+            setupGame();
+        };
+    </script>
+</body>
+</html>
